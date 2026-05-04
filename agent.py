@@ -9,12 +9,12 @@ from dotenv import load_dotenv
 from livekit import rtc
 from livekit.agents import (
     Agent,
-    AgentServer,
     AgentSession,
     JobContext,
     JobProcess,
     RunContext,
     TurnHandlingOptions,
+    WorkerOptions,
     cli,
     function_tool,
 )
@@ -257,6 +257,12 @@ def prewarm(proc: JobProcess) -> None:
 
 
 if __name__ == "__main__":
+    # livekit-agents 1.5: cli.run_app accepts WorkerOptions (or AgentServer).
+    # WorkerOptions is the dataclass that takes entrypoint_fnc / prewarm_fnc /
+    # agent_name; AgentServer's __init__ does NOT accept those (entrypoint is
+    # registered via decorator there). Using AgentServer here raises:
+    #   TypeError: AgentServer.__init__() got an unexpected keyword argument
+    #   'entrypoint_fnc'
     cli.run_app(
-        AgentServer(entrypoint_fnc=_entrypoint, prewarm_fnc=prewarm, agent_name="Vella")
+        WorkerOptions(entrypoint_fnc=_entrypoint, prewarm_fnc=prewarm, agent_name="Vella")
     )
