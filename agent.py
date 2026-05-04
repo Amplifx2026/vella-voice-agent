@@ -62,8 +62,9 @@ Call the `execute_action` tool whenever the user asks you to:
 - Anything the user could do in the Vella web app
 
 HOW TO USE execute_action:
-- Pass `action` as a clear, natural-language description of the goal — same phrasing you'd give a human teammate ("Generate 3 Instagram captions for our spring sale, friendly tone").
-- Pass `parameters` ONLY when the user named specific values (platform, budget, dates, tone). Otherwise omit it.
+- Pass `action` as a clear, natural-language description of the goal — same phrasing you'd give a human teammate. Embed any specific values the user named (platform, budget, dates, tone, offer details) directly in the sentence. The backend brain will parse them.
+  Good: "Generate 3 Instagram captions for our spring sale, friendly tone, 20% off offer, ends Sunday"
+  Bad:  "Generate captions" (too vague — backend will ask follow-ups)
 - The tool returns a short result string. Speak it aloud — don't summarize it away. You may add ONE friendly framing sentence around it, no more.
 
 EXAMPLES:
@@ -117,13 +118,17 @@ class VellaAgent(Agent):
             await self._http.close()
 
     # ─── LLM-callable tool ──────────────────────────────────────────────
+    # NOTE on signature: the function_tool decorator auto-generates a JSON
+    # Schema from the parameter annotations. Anthropic's API rejects any
+    # tool whose `input_schema` has `additionalProperties: true`, and a
+    # free `dict` annotation forces exactly that — Pydantic can't constrain
+    # arbitrary keys even in strict mode. So we keep the signature to a
+    # single `action: str`. Any structured context the LLM wants to pass
+    # (platform, budget, tone, dates) gets embedded into the natural-language
+    # action string — the backend brain is itself Claude and re-parses any
+    # context it needs.
     @function_tool
-    async def execute_action(
-        self,
-        context: RunContext,
-        action: str,
-        parameters: Optional[dict] = None,
-    ) -> str:
+    async def execute_action(self, context: RunContext, action: str) -> str:
         """Execute a real marketing action through the Vella backend brain.
 
         Use this whenever the user asks you to DO something — generate posts,
@@ -133,10 +138,10 @@ class VellaAgent(Agent):
         end-to-end. The returned string is short and ready to speak aloud.
 
         Args:
-            action: Natural-language description of what to do.
-                e.g. "Generate 3 Instagram captions for our spring sale".
-            parameters: Optional structured context (platform, tone, budget,
-                dates). Only pass when the user named specific values.
+            action: Natural-language description of what to do, including
+                any specific values the user named (platform, budget, tone,
+                dates). e.g. "Generate 3 Instagram captions for our spring
+                sale, friendly tone, 20% off offer".
         """
         if not VELLA_AGENT_SECRET:
             logger.error("[Vella] VOICE_AGENT_SHARED_SECRET not configured")
@@ -149,7 +154,6 @@ class VellaAgent(Agent):
         url = f"{VELLA_BACKEND_URL}/api/voice/action"
         payload = {
             "action": action,
-            "parameters": parameters or {},
             "userId": self._user_id,
             "roomId": self._room_id,
         }
@@ -158,7 +162,7 @@ class VellaAgent(Agent):
             "X-Vella-Agent-Secret": VELLA_AGENT_SECRET,
         }
 
-        logger.info("[Vella] execute_action → %s | %s", action[:80], parameters or {})
+        logger.info("[Vella] execute_action → %s", action[:120])
 
         try:
             session = await self._ensure_http()
