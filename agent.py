@@ -233,7 +233,9 @@ async def _entrypoint(ctx: JobContext) -> None:
             agent.bind_session(ctx.room.name, uid)
 
     session = AgentSession(
-        llm=anthropic.LLM(model="claude-opus-4-7", temperature=0.7),
+        # claude-opus-4-7 deprecated `temperature` — Anthropic rejects the
+        # request if it's set. Leave it unset; the model picks a sensible default.
+        llm=anthropic.LLM(model="claude-opus-4-7"),
         # livekit-plugins-elevenlabs 1.5: TTS takes voice_id (str) and
         # voice_settings directly. The Voice dataclass is just (id, name,
         # category) and is NOT used as a TTS arg — passing voice=Voice(...)
