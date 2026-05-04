@@ -230,20 +230,22 @@ async def _entrypoint(ctx: JobContext) -> None:
 
     session = AgentSession(
         llm=anthropic.LLM(model="claude-opus-4-7", temperature=0.7),
+        # livekit-plugins-elevenlabs 1.5: TTS takes voice_id (str) and
+        # voice_settings directly. The Voice dataclass is just (id, name,
+        # category) and is NOT used as a TTS arg — passing voice=Voice(...)
+        # raises "Voice.__init__() got an unexpected keyword argument 'settings'"
+        # because Voice has no `settings` field and TTS has no `voice` arg.
         tts=elevenlabs.TTS(
             model="eleven_flash_v2_5",
-            voice=elevenlabs.Voice(
-                id="cgSgspJ2msm6clMCkdW9",
-                name="Jessica",
-                settings=elevenlabs.VoiceSettings(
-                    stability=0.5,
-                    similarity_boost=0.75,
-                    style=0.0,
-                    use_speaker_boost=True,
-                ),
+            voice_id="cgSgspJ2msm6clMCkdW9",
+            voice_settings=elevenlabs.VoiceSettings(
+                stability=0.5,
+                similarity_boost=0.75,
+                style=0.0,
+                use_speaker_boost=True,
             ),
         ),
-        stt=deepgram.STT(model="nova-3", language="en"),
+        stt=deepgram.STT(model="nova-3", language="en-US"),
         vad=silero.VAD.load(),
     )
     await session.start(room=ctx.room, agent=agent)
