@@ -57,8 +57,13 @@ VELLA_ACTION_TIMEOUT_S = int(os.environ.get("VELLA_ACTION_TIMEOUT_S", "180"))
 VELLA_LOOKUP_TIMEOUT_S = float(os.environ.get("VELLA_LOOKUP_TIMEOUT_S", "3.0"))
 
 # ─── Voice config ─────────────────────────────────────────────────────
+# Defaults to ElevenLabs' "Rachel" voice — a well-known, high-quality
+# stock voice that's been validated by the community for speech-agent
+# use. The previous default (T720RsqorTx4ZZWohrNN) was a custom clone
+# and may have been the source of the garbled-audio reports. Override
+# via env when you've validated a custom voice end-to-end.
 VELLA_VOICE_ID = os.environ.get(
-    "ELEVENLABS_VOICE_ID", "T720RsqorTx4ZZWohrNN"
+    "ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM"
 )
 
 
@@ -350,13 +355,24 @@ async def entrypoint(ctx: JobContext) -> None:
             # claude-opus-4-7 deprecated `temperature` — leave it unset.
             model="claude-opus-4-7",
         ),
+        # Model: eleven_turbo_v2_5 (the elevenlabs plugin's own default —
+        # verified in livekit/plugins/elevenlabs/tts.py:101). Better
+        # naturalness than eleven_flash_v2_5 with only marginally higher
+        # latency. flash_v2_5 prioritizes speed and was producing garbled
+        # output paired with the aggressive voice-settings tuning below.
+        #
+        # Voice settings: back to safe ElevenLabs defaults. Low stability
+        # (< 0.4) and non-zero style amplify expressiveness at the cost
+        # of stability and can produce warbling, especially on short
+        # utterances like "Hey, this is Vella." stability=0.5 + style=0.0
+        # is the documented "consistent, clear" preset.
         tts=elevenlabs.TTS(
-            model="eleven_flash_v2_5",
+            model="eleven_turbo_v2_5",
             voice_id=VELLA_VOICE_ID,
             voice_settings=elevenlabs.VoiceSettings(
-                stability=0.3,
-                similarity_boost=0.8,
-                style=0.2,
+                stability=0.5,
+                similarity_boost=0.75,
+                style=0.0,
                 use_speaker_boost=True,
             ),
         ),
