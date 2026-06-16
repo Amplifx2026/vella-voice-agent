@@ -3,6 +3,6 @@ livekit-plugins-anthropic~=1.4
 livekit-plugins-deepgram~=1.4
 livekit-plugins-elevenlabs~=1.4
 livekit-plugins-silero~=1.4
-livekit-plugins-noise-cancellation~=1.4
+livekit-plugins-noise-cancellation~=0.2
 python-dotenv>=1.0.0
 aiohttp>=3.9.0
