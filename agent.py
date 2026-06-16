@@ -341,8 +341,8 @@ async def entrypoint(ctx: JobContext) -> None:
 
     session = AgentSession(
         llm=anthropic.LLM(
-            # claude-opus-4-7 deprecated `temperature` — leave it unset.
-            model="claude-opus-4-7",
+            # claude-opus-4-8 deprecated `temperature` — leave it unset.
+            model="claude-opus-4-8",
         ),
         # Model: eleven_turbo_v2_5 (the elevenlabs plugin's own default —
         # verified in livekit/plugins/elevenlabs/tts.py:101). Better
