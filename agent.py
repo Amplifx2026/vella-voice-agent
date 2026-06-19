@@ -349,19 +349,18 @@ async def entrypoint(ctx: JobContext) -> None:
         # latency. flash_v2_5 prioritizes speed and was producing garbled
         # output paired with the aggressive voice-settings tuning below.
         #
-        # Voice settings: tuned for a more consistent, professional,
-        # authoritative delivery. Higher stability (0.65) steadies the
-        # cadence; similarity_boost (0.80) tracks the target voice more
-        # closely; a slight style (0.15) adds authority without the
-        # warbling that low-stability + high-style produced on short
-        # utterances like "Hey, this is Vella."
+        # Voice settings: Rachel, tuned to sound like a confident marketing
+        # executive giving a briefing — not a smooth late-night radio host.
+        # High stability (0.71) strips out the breathy variation for a clean,
+        # direct read; similarity_boost (0.82) tracks the target voice; style
+        # kept minimal (0.08) so it stays professional, not performative.
         tts=elevenlabs.TTS(
             model="eleven_turbo_v2_5",
             voice_id=VELLA_VOICE_ID,
             voice_settings=elevenlabs.VoiceSettings(
-                stability=0.65,
-                similarity_boost=0.80,
-                style=0.15,
+                stability=0.71,
+                similarity_boost=0.82,
+                style=0.08,
                 use_speaker_boost=True,
             ),
         ),
