@@ -115,6 +115,19 @@ def _extract_user_id(metadata: Optional[str]) -> Optional[str]:
     return data.get("account_id") or data.get("userId")
 
 
+def _extract_name(metadata: Optional[str]) -> tuple[Optional[str], Optional[str]]:
+    """Pull (name, business_name) from token/dispatch metadata so web mic
+    sessions — which have no SIP phone to look up — can still be greeted by
+    name. Returns (None, None) on anything malformed."""
+    if not metadata:
+        return (None, None)
+    try:
+        data = json.loads(metadata)
+    except (json.JSONDecodeError, TypeError):
+        return (None, None)
+    return (data.get("name"), data.get("business_name"))
+
+
 def _phone_from_identity(identity: Optional[str]) -> Optional[str]:
     """Parse an E.164 phone from a LiveKit participant identity or room
     name. LiveKit's SIP integration registers inbound callers with
@@ -151,6 +164,8 @@ class VellaAgent(Agent):
         self._user_id: Optional[str] = None
         self._room_id: Optional[str] = None
         self._phone: Optional[str] = None
+        self._name: Optional[str] = None
+        self._business: Optional[str] = None
         self._http: Optional[aiohttp.ClientSession] = None
 
     def bind_session(
@@ -158,13 +173,22 @@ class VellaAgent(Agent):
         room_id: str,
         user_id: Optional[str] = None,
         phone: Optional[str] = None,
+        name: Optional[str] = None,
+        business: Optional[str] = None,
     ) -> None:
         self._room_id = room_id
         self._user_id = user_id
         self._phone = phone
+        # Only overwrite name/business when supplied, so the re-bind calls on
+        # participant_connected (which don't carry them) can't clobber a value
+        # we already extracted from metadata.
+        if name is not None:
+            self._name = name
+        if business is not None:
+            self._business = business
         logger.info(
-            "[Vella] session bound — room=%s user=%s phone=%s",
-            room_id, user_id, phone,
+            "[Vella] session bound — room=%s user=%s phone=%s name=%s",
+            room_id, user_id, phone, self._name,
         )
 
     async def _ensure_http(self) -> aiohttp.ClientSession:
@@ -323,11 +347,16 @@ async def entrypoint(ctx: JobContext) -> None:
     # identity. Either or both may be present; either or both may be
     # absent.
     user_id = _extract_user_id(ctx.room.metadata)
+    name, business = _extract_name(ctx.room.metadata)
     for p in ctx.room.remote_participants.values():
         if not user_id:
             user_id = _extract_user_id(p.metadata)
+        if not name:
+            pn, pb = _extract_name(p.metadata)
+            name = name or pn
+            business = business or pb
     phone = _extract_phone(ctx.room)
-    agent.bind_session(ctx.room.name, user_id=user_id, phone=phone)
+    agent.bind_session(ctx.room.name, user_id=user_id, phone=phone, name=name, business=business)
 
     @ctx.room.on("participant_connected")
     def _on_participant_connected(participant: rtc.RemoteParticipant) -> None:
@@ -390,8 +419,13 @@ async def entrypoint(ctx: JobContext) -> None:
         lookup_task = asyncio.create_task(agent.lookup_caller())
 
     # Speak the immediate, casual greeting via TTS — no LLM round-trip.
-    # session.say returns a SpeechHandle; awaiting it waits for playout.
-    greeting_handle = session.say("Hey, this is Vella. What's going on?")
+    # When we already know the user's name (web mic sessions carry it in token
+    # metadata), greet them by first name straight away. Otherwise fall back to
+    # the generic greeting and let the SIP caller-lookup personalize the
+    # follow-up turn below.
+    first_name = (agent._name or "").strip().split(" ")[0] if agent._name else ""
+    greeting_text = f"Hey {first_name}, what's up?" if first_name else "Hey, this is Vella. What's going on?"
+    greeting_handle = session.say(greeting_text)
 
     # Resolve the lookup (capped at VELLA_LOOKUP_TIMEOUT_S so we don't
     # hold the call hostage if the backend hangs). All errors → caller=None.
